@@ -47,6 +47,24 @@ const getMe = async(req,res)=>{
     const user = await userModel.findById(decoded.id)
     res.status(200).json({user: user})
 }
+
+const refreshToken = async(req,res)=>{
+    const refreshToken = req.cookies.refreshToken
+    if(!refreshToken){
+        return res.status(401).json({message : "Unauthorized"})
+    }
+    const decode = jwt.verify(refreshToken,config.JWT_SECRET)
+    const accessToken = jwt.sign({id : decode.id},config.JWT_SECRET,{expiresIn : "15m"})
+
+    const newRefreshToken = jwt.sign({id : decode.id},config.JWT_SECRET,{expiresIn : "7d"})
+    res.cookie("refreshToken",newRefreshToken,{
+        httpOnly : true,
+        secure : true,
+        sameSite : "strict",
+        maxAge : 7 * 24 * 60 * 60 * 1000
+     })
+    res.status(200).json({accessToken : accessToken})
+}
  
-export { Register, getMe }
+export { Register, getMe, refreshToken }
 
