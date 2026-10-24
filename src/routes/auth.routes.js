@@ -10,6 +10,7 @@ authRouter.get("/refresh-token",authController.refreshToken)
 authRouter.get("/logout",authController.logOut)
 authRouter.get("/logout-all",authController.logOutAll)
 authRouter.post("/login",authController.login)
+authRouter.post("/verify-otp",authController.verifyOtp)
 
 
 export default authRouter

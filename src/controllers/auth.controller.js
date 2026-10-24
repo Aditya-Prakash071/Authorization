@@ -3,6 +3,9 @@ import crypto from "crypto"
 import jwt from "jsonwebtoken"
 import config from "../config/config.js"
 import sessionModel from "../model/session.model.js"
+import { generateOtp, getOtpHtml } from "../utils/utils.js"
+import otpModel from "../model/otp.model.js"
+import { sendEmail } from "../service/email.service.js"
 
 const Register = async (req, res) => {  
     const { name, email, password } = req.body;
@@ -24,8 +27,6 @@ const hashedPassword = crypto.createHash("sha256").update(password).digest("hex"
         email : email,
         password : hashedPassword,
      })
-
-
     //  const refreshToken = jwt.sign({id : user._id,},config.JWT_SECRET,{expiresIn : "7d"})
     //  const refreshTokenHash = crypto.createHash("sha256").update(refreshToken).digest("hex")
 
@@ -44,8 +45,16 @@ const hashedPassword = crypto.createHash("sha256").update(password).digest("hex"
     //     maxAge : 7 * 24 * 60 * 60 * 1000
     //  })
 
-    await sendEmail()
-
+    const otp = generateOtp()
+    const html = getOtpHtml(otp)
+    const otpHash = crypto.createHash("sha256").update(otp).digest("hex")
+    await otpModel.create({
+        email : email,
+        user : user._id,
+        otpHash,
+        expiresAt : new Date(Date.now() + 10 * 60 * 1000) 
+    })
+    await sendEmail(email,"Verify your email",`Your OTP is ${otp}`,html)
       res.status(201).json({message : "User registered successfully",user : user,verified : user.verified})
     }
 
@@ -138,6 +147,10 @@ const login = async(req,res)=>{
     if(!user){
         return res.status(401).json({message : "User Not Found"})
     }
+
+    if(!user.verified){
+        return res.status(401).json({message : "User not verified"})
+    }
     const hashedPassword = crypto.createHash("sha256").update(password).digest("hex")
     if(user.password  !== hashedPassword){
         return res.status(401).json({message : "Invalid Password"})
@@ -175,7 +188,30 @@ const login = async(req,res)=>{
     })
 }
 
+const verifyOtp = async(req,res)=>{
+    const {email,otp } = req.body
+
+    const otpHash = crypto.createHash("sha256").update(otp).digest("hex")
+
+    const otpRecord = await otpModel.findOne({
+        email,
+        otpHash
+    })
+
+    if(!otpRecord){
+        return res.status(400).json({message : "Invalid OTP"})
+    }
+
+    const user = await userModel.findByIdAndUpdate(otpRecord.user,{
+        verified : true
+    })
+
+    await otpModel.deleteMany({user : user._id})
+
+    return res.status(200).json({message : "User verified successfully",user : user})
+}
 
 
-export { Register, getMe, refreshToken, logOut ,logOutAll,login}
+
+export { Register, getMe, refreshToken, logOut ,logOutAll,login,verifyOtp}
 
